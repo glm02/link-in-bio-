@@ -1,13 +1,18 @@
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 import { Visit } from "./types";
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
 const VISITS_KEY = "visits";
 const BLOCKLIST_KEY = "blocklist";
 const MAX_VISITS = 10000;
 
 export async function saveVisit(visit: Visit): Promise<void> {
-  await kv.lpush(VISITS_KEY, JSON.stringify(visit));
-  await kv.ltrim(VISITS_KEY, 0, MAX_VISITS - 1);
+  await redis.lpush(VISITS_KEY, JSON.stringify(visit));
+  await redis.ltrim(VISITS_KEY, 0, MAX_VISITS - 1);
 }
 
 export async function updateVisitCaptcha(visitorId: string): Promise<void> {
@@ -15,7 +20,7 @@ export async function updateVisitCaptcha(visitorId: string): Promise<void> {
   const idx = visits.findIndex((v) => v.visitorId === visitorId && !v.captchaPassed);
   if (idx === -1) return;
   visits[idx].captchaPassed = true;
-  await kv.lset(VISITS_KEY, idx, JSON.stringify(visits[idx]));
+  await redis.lset(VISITS_KEY, idx, JSON.stringify(visits[idx]));
 }
 
 export async function updateTimeOnPage(visitorId: string, seconds: number): Promise<void> {
@@ -23,20 +28,20 @@ export async function updateTimeOnPage(visitorId: string, seconds: number): Prom
   const idx = visits.findIndex((v) => v.visitorId === visitorId);
   if (idx === -1) return;
   visits[idx].timeOnPage = seconds;
-  await kv.lset(VISITS_KEY, idx, JSON.stringify(visits[idx]));
+  await redis.lset(VISITS_KEY, idx, JSON.stringify(visits[idx]));
 }
 
 export async function getVisits(): Promise<Visit[]> {
-  const raw = await kv.lrange(VISITS_KEY, 0, -1);
+  const raw = await redis.lrange(VISITS_KEY, 0, -1);
   return raw.map((r) => (typeof r === "string" ? JSON.parse(r) : r)) as Visit[];
 }
 
 export async function clearVisits(): Promise<void> {
-  await kv.del(VISITS_KEY);
+  await redis.del(VISITS_KEY);
 }
 
 export async function getBlocklist(): Promise<string[]> {
-  const raw = await kv.get<string>(BLOCKLIST_KEY);
+  const raw = await redis.get<string>(BLOCKLIST_KEY);
   if (!raw) return [];
   try { return JSON.parse(raw); } catch { return []; }
 }
@@ -45,13 +50,13 @@ export async function addToBlocklist(ip: string): Promise<void> {
   const list = await getBlocklist();
   if (!list.includes(ip)) {
     list.push(ip);
-    await kv.set(BLOCKLIST_KEY, JSON.stringify(list));
+    await redis.set(BLOCKLIST_KEY, JSON.stringify(list));
   }
 }
 
 export async function removeFromBlocklist(ip: string): Promise<void> {
   const list = await getBlocklist();
-  await kv.set(BLOCKLIST_KEY, JSON.stringify(list.filter((i) => i !== ip)));
+  await redis.set(BLOCKLIST_KEY, JSON.stringify(list.filter((i) => i !== ip)));
 }
 
 export async function isBlocked(ip: string): Promise<boolean> {
