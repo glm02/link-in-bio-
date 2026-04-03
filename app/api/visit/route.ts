@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { saveVisit, isBlocked, getVisits } from "@/lib/kv";
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
   const isReturning = !!existingId;
 
   let body: Record<string, string> = {};
-  try { body = await req.json(); } catch {}
+  try { body = await req.json(); } catch { body = {}; }
   const { utmSource = "", utmCampaign = "", utmMedium = "", timezone = "" } = body;
 
   const [geo, parsed] = await Promise.all([

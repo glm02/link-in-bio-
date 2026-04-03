@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from "next/server";
 import { getVisits, clearVisits, updateTimeOnPage } from "@/lib/kv";
 
